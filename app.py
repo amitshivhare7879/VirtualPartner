@@ -80,7 +80,6 @@ def register():
 @app.route('/api/chat/<user_id>', methods=['POST'])
 def chat(user_id):
     """Handles message receipt and AI response generation."""
-    # NOTE: The check for AI_PROFILES is removed to ensure the app functions immediately.
     
     data = request.json
     user_input = data.get('message')
@@ -111,11 +110,33 @@ def chat(user_id):
 def train_model():
     """
     Accepts raw chat text via POST request to train the AI model.
-    This will be used by your future Admin portal.
     """
     global AI_PROFILES
     
     raw_chat_content = request.data.decode('utf-8')
     
     if not raw_chat_content:
-        return jsonify({"message": "Error: No chat})
+        # SYNTAX FIX APPLIED HERE: string now correctly closed
+        return jsonify({"message": "Error: No chat content provided in the request body."}), 400
+        
+    try:
+        parsed_data = parse_chat(raw_chat_content)
+        AI_PROFILES = model.extract_patterns(parsed_data)
+        
+        db = get_db()
+        db.ai_profiles.update_one({}, {"$set": AI_PROFILES}, upsert=True)
+        
+        return jsonify({
+            "message": "AI Model successfully trained and stored from chat data.",
+            "status": "Trained",
+            "total_messages_parsed": len(parsed_data)
+        }), 200
+
+    except Exception as e:
+        print(f"Training failed: {e}")
+        return jsonify({"message": "Training failed due to parsing or MongoDB error.", "error": str(e)}), 500
+
+
+if __name__ == '__main__':
+    print("Running Flask App locally...")
+    app.run(debug=True, port=8000)
