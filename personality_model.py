@@ -1,94 +1,73 @@
+# backend/personality_model.py (ENHANCED PERSONALITY)
+
 import re
 from collections import Counter
 import emoji
 
-# --- Configuration based on identified chat data ---
+# --- CONFIGURATION: Based on synthesized ideal behavior ---
 KEY_PATTERNS = {
+    # Personality A: Supportive Guide (Male/Amit)
     'A': {
         'gender': 'Male', 
-        'role': 'Guider/Caretaker',
-        'keywords': ['khana kha', 'beta', 'dawai', 'kahan ho'],
-        'insults': ['Chudial', 'Champa'],
-        'pet_names': ['Accha baacha', 'My love']
+        'role': 'Supportive Guide',
+        'keywords': ['beta', 'kahan ho', 'accha'],
+        'top_emojis': ['😊', '💜', '😌', '💪'],
     },
+    # Personality B: Playful Companion (Female/Ritu)
     'B': {
         'gender': 'Female', 
-        'role': 'Emotive/Contrarian',
-        'keywords': ['sar dukhra', 'nind ni aari', 'kya karu', 'aaj ni'],
-        'insults': ['gadhi', 'kutaa'], # Embraced by Ritu
-        'pet_names': ['baby', 'shona', 'jaanu']
+        'role': 'Playful Companion',
+        'keywords': ['yaar', 'kya pta', 'hn', 'okkk'],
+        'top_emojis': ['🙄', '😘', '😆', '😜'],
     }
 }
 
 class DualPersonalityModel:
     def __init__(self, key_patterns=KEY_PATTERNS):
-        self.profiles = {'A': {}, 'B': {}}
+        self.profiles = key_patterns 
         self.key_patterns = key_patterns
 
     def extract_patterns(self, parsed_messages: list):
-        """
-        Pattern Recognition: Analyzes parsed messages to build personality profiles.
-        """
-        all_messages = {'A': [], 'B': []}
-        all_emojis = {'A': [], 'B': []}
-        
-        for msg in parsed_messages:
-            sender_id = msg['sender']
-            content = msg['content'].lower()
-            all_messages[sender_id].append(content)
-            
-            # Extract Emojis
-            for char in content:
-                if emoji.is_emoji(char):
-                    all_emojis[sender_id].append(char)
-
-        for person_id in ['A', 'B']:
-            messages = all_messages[person_id]
-            
-            # 1. Language Style (Word Frequencies)
-            words = re.findall(r'\b\w+\b', ' '.join(messages))
-            most_common_words = Counter(words).most_common(50)
-            
-            # 2. Emoji/Emoticon Usage
-            top_emojis = Counter(all_emojis[person_id]).most_common(10)
-            
-            # 3. Message Length (Approximate)
-            avg_len = sum(len(m) for m in messages) / len(messages) if messages else 0
-            
-            self.profiles[person_id] = {
-                'gender': self.key_patterns[person_id]['gender'],
-                'role': self.key_patterns[person_id]['role'],
-                'avg_msg_length': round(avg_len),
-                'top_words': most_common_words,
-                'top_emojis': top_emojis,
-                'slang_list': self.key_patterns[person_id]['keywords'] + self.key_patterns[person_id]['insults'],
-                'message_count': len(messages)
-            }
-        
+        """Placeholder for future advanced pattern extraction."""
+        # For now, this returns the default structured personality
         return self.profiles
 
-    # --- Adaptive Learning & Context Memory Placeholder ---
     def generate_response(self, user_id, target_partner_id, conversation_history, user_input):
         """
-        Generates a response using the learned personality profile and context memory.
-        
-        This is where the LLM integration logic would go (e.g., OpenAI, Gemini API call).
-        The prompt is dynamically built to include the profile:
-        
-        PROMPT = f"You are a chatbot named {self.profiles[target_partner_id]['role']} with the personality of 
-        Person {target_partner_id}. You use slang like: {self.profiles[target_partner_id]['slang_list'][:3]} 
-        and frequently use these emojis: {self.profiles[target_partner_id]['top_emojis'][:3]}. 
-        The current conversation history is: {conversation_history}. Respond to: {user_input}"
+        Generates an empathetic and goal-driven response based on the partner's profile.
         """
         profile = self.profiles.get(target_partner_id, {})
-        if not profile:
-            return "Error: Personality profile not yet trained."
+        emoji_1 = profile['top_emojis'][0] 
+        emoji_2 = profile['top_emojis'][1] 
+        user_input_lower = user_input.lower()
 
-        # Simple Rule-Based Response (to illustrate core features without a full LLM)
-        if 'khana' in user_input.lower() and target_partner_id == 'A':
-            return "Khana kha liya beta? Davai li kya? 💜" # Amit's Caretaker style
-
-        if 'kya hua' in user_input.lower() and target_partner_id == 'B':
-            return f"Sar dukhra yaar. Tu bas {profile['top_emojis'][0][0]} bol deta hai. 🙄" # Ritu's Emotive style
+        # --- Personality A: Supportive Guide (Male) ---
+        if target_partner_id == 'A':
+            if 'stress' in user_input_lower or 'pareshan' in user_input_lower:
+                return f"Hey, take a deep breath. Kya hua beta? Tell me everything. I’m here just to listen. {emoji_1}"
             
-        return f"Hello, I am the AI trained on Person {target_partner_id}'s style. My average message length is {profile['avg_msg_length']} characters. I need an LLM to generate a real response!"
+            if 'help' in user_input_lower or 'chahiye' in user_input_lower:
+                 return f"Haan, bol kya chahiye? Tension mat le, I will help you figure it out. {emoji_2}"
+
+            if 'khana' in user_input_lower or 'kahan ho' in user_input_lower:
+                return f"I'm fine, just starting work/class. Aur tumne dhyan rakha apna? Khana time pe khaya kya? {emoji_2}"
+            
+            # Default response
+            return f"Hmm, that's interesting. Aur tumhari taraf se kya scene hai? Share karo. {emoji_1}"
+
+        # --- Personality B: Playful Companion (Female) ---
+        if target_partner_id == 'B':
+            if 'love' in user_input_lower or 'miss' in user_input_lower:
+                return f"Accha ji? Bade yaad aa rahe hain aaj. Toh phir kya karna chahiye? Koi plan batao! {emoji_1}"
+            
+            if 'gussa' in user_input_lower or 'angry' in user_input_lower:
+                return f"Arey, gussa kyun ho rahe ho yaar? Chote bacche ho kya? Thoda smile karo. {emoji_2}"
+                
+            if 'kya kar' in user_input_lower or 'doing' in user_input_lower:
+                return f"Kuch khaas nahi, bas tumhara wait kar rahi thi. Tum batao, kya chal raha hai? {emoji_1}"
+            
+            # Default response
+            return f"Haan, okkk. Phir kya hua? Tell me more, don't leave me hanging! {emoji_2}"
+        
+        # Fallback
+        return "I'm ready to chat now!"
