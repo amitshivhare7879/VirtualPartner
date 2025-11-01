@@ -1,60 +1,58 @@
-# backend/database.py
+# backend/database.py (FINAL CORRECTED VERSION)
 
 from pymongo import MongoClient
 import os
 from datetime import datetime
-import uuid # Used for generating unique user IDs in register endpoint
+import uuid 
+
+# --- Global Client Initialization ---
+# We define the client outside the function to initialize it once
+# We still connect lazily inside get_db() to use the MONGO_URI from os.environ
+CLIENT = None 
 
 def get_db():
     """
     Establishes and returns a connection to the MongoDB database.
-    MONGO_URI is expected to be set as an environment variable by Render.
     """
-    # 1. Get connection string from environment variables
+    global CLIENT
+    
+    # 1. Check if the client is already connected
+    if CLIENT is not None:
+        return CLIENT['VirtualPartnerDB']
+        
+    # 2. Get connection string from environment variables
     MONGO_URI = os.environ.get('MONGO_URI')
     if not MONGO_URI:
         raise EnvironmentError("MONGO_URI environment variable not set.")
     
-    # 2. Connect to the Atlas cluster
-    client = MongoClient(MONGO_URI)
+    # 3. Connect to the Atlas cluster and store the client
+    CLIENT = MongoClient(MONGO_URI)
     
-    # 3. Use 'VirtualPartnerDB' as the specific database name inside the cluster
-    db = client['VirtualPartnerDB'] 
-    return db
+    # 4. Return the specific database instance
+    return CLIENT['VirtualPartnerDB']
 
 def create_user(user_data):
-    """
-    Saves a new user profile during the onboarding/registration process.
-    """
+    """Saves a new user profile during registration."""
     db = get_db()
     
-    # Ensure user_id is unique before insertion
     if 'user_id' not in user_data:
         user_data['user_id'] = str(uuid.uuid4())
         
     user_data['created_at'] = datetime.utcnow()
-    # The 'users' collection stores user profile data
     db.users.insert_one(user_data)
     return user_data
 
 def get_user_and_history(user_id):
-    """
-    Retrieves a user's profile and their complete chat history for session persistence.
-    """
+    """Retrieves a user's profile and their complete chat history for session persistence."""
     db = get_db()
     
-    # Find the user profile
     user = db.users.find_one({'user_id': user_id})
-    
-    # Retrieve the chat history, sorted chronologically
     history = list(db.chats.find({'user_id': user_id}).sort('timestamp', 1))
     
     return user, history
 
 def save_chat_message(user_id, sender, content):
-    """
-    Saves a chat message (from user or AI partner) for conversation history and adaptive learning.
-    """
+    """Saves a chat message for conversation history and adaptive learning."""
     db = get_db()
     
     message = {
@@ -63,6 +61,5 @@ def save_chat_message(user_id, sender, content):
         'content': content,
         'timestamp': datetime.utcnow()
     }
-    # The 'chats' collection stores the conversation history
     db.chats.insert_one(message)
     return message
