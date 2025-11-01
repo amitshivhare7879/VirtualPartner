@@ -1,6 +1,9 @@
 # backend/app.py (KEY MODIFICATIONS)
 # ... (imports) ...
-from backend.database import get_db, create_user, get_user_and_history, save_chat_message
+# NEW (Correct: Direct/Relative Imports)
+from database import get_db, create_user, get_user_and_history, save_chat_message
+from parser import parse_chat
+from personality_model import DualPersonalityModel
 from datetime import datetime
 import uuid # For generating unique user IDs
 from flask_cors import CORS # Crucial for free-tier deployment (Frontend needs to talk to Backend)
