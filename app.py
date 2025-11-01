@@ -1,120 +1,128 @@
-# backend/app.py (KEY MODIFICATIONS)
-# ... (imports) ...
-# NEW (Correct: Direct/Relative Imports)
+# backend/app.py
+
+from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+import os
+import uuid 
+from datetime import datetime 
+from flask_cors import CORS 
+
+# Core Modules (Imports verified as correct relative imports)
 from database import get_db, create_user, get_user_and_history, save_chat_message
 from parser import parse_chat
 from personality_model import DualPersonalityModel
-from datetime import datetime
-import uuid # For generating unique user IDs
-from flask_cors import CORS # Crucial for free-tier deployment (Frontend needs to talk to Backend)
 
-# ... (load_dotenv, app = Flask(__name__), model = DualPersonalityModel())
-CORS(app) # Enable CORS for frontend communication
 
-# --- Training Endpoint (Updated to use your provided files) ---
-@app.route('/api/train_model', methods=['POST'])
-def train_model():
-    # This endpoint is run ONCE by you, the developer, to train the core model 
-    # using the provided four chat files.
-    # NOTE: This requires replacing the placeholder data in the last response 
-    # with the actual content of the four files when you run this locally/on your server.
-    # For simplicity, we assume success for the API demo:
-    # (This is where the model.extract_patterns(parsed_data) call happens)
-    # Global AI_PROFILES is set here.
-    # AI_PROFILES = model.extract_patterns(parsed_data)
+load_dotenv()
 
-    # Once trained, store the resulting personality profiles in the database
-    # db = get_db()
-    # db.ai_profiles.update_one({}, {"$set": AI_PROFILES}, upsert=True)
+# 1. Define the Flask App instance
+app = Flask(__name__)
 
-    # ... (rest of the success response)
-    return jsonify({"message": "Core model trained and stored."}), 200
+# 2. Initialize CORS
+CORS(app) 
 
-# --- User Flow: Login/Signup & Session Persistence ---
+# 3. Initialize the AI Model
+model = DualPersonalityModel()
+AI_PROFILES = None # Global variable to hold the trained profiles
+
+# --- API Endpoints ---
+
+@app.route('/api/status', methods=['GET'])
+def status():
+    """Simple health check endpoint."""
+    return jsonify({"status": "ready", "model_trained": AI_PROFILES is not None})
+
 @app.route('/api/auth/login', methods=['POST'])
 def login():
+    """Handles session persistence for returning users."""
     data = request.json
-    # 1. Check for existing user (Simulated)
-    # user = db.users.find_one({'email': data['email'], 'password': data['password']})
-    user, history = get_user_and_history(data.get('user_id')) # Simplified by looking for an ID
-
+    user_id = data.get('user_id') 
+    
+    user, history = get_user_and_history(user_id) 
+    
     if user:
-        # Returning User: Continue previous chat
         partner_name = user['partner_name']
-
+        return jsonify({
+            "success": True, 
+            "user_id": user['user_id'], 
+            "partner_name": partner_name,
+            "chat_history": history
+        }), 200
     else:
-        # New User: Requires Onboarding
-        return jsonify({"needs_onboarding": True}), 200
+        return jsonify({"success": False, "needs_onboarding": True}), 200
 
-    return jsonify({
-        "success": True, 
-        "user_id": user['user_id'], 
-        "partner_name": partner_name,
-        "chat_history": history
-    }), 200
-
-# --- Onboarding Flow: Gender, Name Partner ---
 @app.route('/api/auth/register', methods=['POST'])
 def register():
+    """Handles new user onboarding (gender choice, partner name)."""
     data = request.json
-    user_id = str(uuid.uuid4()) # Generate unique ID
-
-    # Choose gender -> Bot is opposite gender partner
+    
+    user_id = str(uuid.uuid4())
     user_gender = data.get('user_gender')
+    
     partner_gender = 'Female' if user_gender == 'Male' else 'Male'
-
-    # Let user name their virtual partner
     partner_name = data.get('partner_name')
 
     new_user = {
         'user_id': user_id,
-        'email': data.get('email'), # Login/Signup
+        'email': data.get('email'), 
         'password': data.get('password'),
         'user_gender': user_gender,
         'partner_gender': partner_gender,
         'partner_name': partner_name
     }
-
-    # Save user to DB and provide initial message
+    
     create_user(new_user)
-    save_chat_message(user_id, 'partner', f"Hi {partner_name}!")
+    save_chat_message(user_id, 'partner', f"Hi {partner_name}! It's great to finally chat.")
 
     return jsonify({"success": True, "user_id": user_id, "partner_name": partner_name, "chat_history": []}), 201
 
 # --- Chat Interface (Updated) ---
 @app.route('/api/chat/<user_id>', methods=['POST'])
 def chat(user_id):
-    # ... (Same chat logic as before, but using database.py for history/persistence) ...
-    # (Save user input and AI response using save_chat_message)
-    # (LLM integration/model.generate_response logic remains the same)
-    # ...
+    global AI_PROFILES
+    
+    # 1. Check/Load Model
+    if AI_PROFILES is None:
+        db = get_db()
+        AI_PROFILES = db.ai_profiles.find_one({}) 
+        if AI_PROFILES is None:
+             return jsonify({"message": "AI model not trained. Please run training script first."}), 400
 
     data = request.json
     user_input = data.get('message')
-
-    # 1. Get User Details
-    user, _ = get_user_and_history(user_id)
+    
+    # 2. Get User Details and History
+    user, history = get_user_and_history(user_id)
     if not user:
          return jsonify({"message": "User not found."}), 404
 
-    # 2. Save User Message
+    # 3. Save User Message
     save_chat_message(user_id, 'user', user_input)
-
-    # 3. Get AI Profile (A=Male, B=Female based on your training data)
-    # Determine target_partner_id based on the user's selected partner_gender
-    target_partner_id = 'A' if user['partner_gender'] == 'Male' else 'B'
-
-    # 4. Generate Response (LLM/Rule-based logic)
-    # NOTE: You MUST load AI_PROFILES from the database here 
-    # (This is the adaptive learning/context memory step)
-
-    # For this step, we'll use the rule-based example from the previous response:
-    ai_response = model.generate_response(user_id, target_partner_id, [], user_input)
-
-    # 5. Save AI Response (Adaptive Learning)
+    
+    # 4. Determine target personality 
+    target_partner_id = 'A' if user.get('partner_gender') == 'Male' else 'B'
+    
+    # 5. Generate Response (LLM/Rule-based logic)
+    ai_response = model.generate_response(user_id, target_partner_id, history, user_input)
+    
+    # 6. Save AI Response
     save_chat_message(user_id, 'partner', ai_response)
-
+    
     return jsonify({
         "message": ai_response,
         "sender": "virtual_partner",
     })
+
+# --- TRAINING ENDPOINT ---
+@app.route('/api/train_model', methods=['POST'])
+def train_model():
+    # NOTE: You MUST replace this logic with actual file reading when you run this endpoint.
+    # For now, we simulate success for deployment readiness.
+    # db = get_db()
+    # db.ai_profiles.update_one({}, {"$set": AI_PROFILES}, upsert=True)
+    return jsonify({"message": "Core model trained and stored (Placeholder success)."}), 200
+
+
+if __name__ == '__main__':
+    print("Running Flask App locally...")
+    app.run(debug=True, port=8000)

@@ -7,3 +7,4 @@ emoji         # To handle emoji counts and pattern recognition
 # Optional for robustness:
 # pandas      # For better data manipulation during parsing
 gunicorn
+Flask-CORS
