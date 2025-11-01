@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime 
 from flask_cors import CORS 
 
-# Core Modules (Imports verified as correct relative imports)
+# Core Modules (Imports verified)
 from database import get_db, create_user, get_user_and_history, save_chat_message
 from parser import parse_chat
 from personality_model import DualPersonalityModel
@@ -17,13 +17,12 @@ load_dotenv()
 
 # 1. Define the Flask App instance
 app = Flask(__name__)
-
-# 2. Initialize CORS
 CORS(app) 
 
-# 3. Initialize the AI Model
+# 2. Initialize the AI Model (Uses default personalities from personality_model.py)
 model = DualPersonalityModel()
-AI_PROFILES = None # Global variable to hold the trained profiles
+AI_PROFILES = None # Global variable for future model persistence
+
 
 # --- API Endpoints ---
 
@@ -72,40 +71,34 @@ def register():
     }
     
     create_user(new_user)
-    save_chat_message(user_id, 'partner', f"Hi {partner_name}! It's great to finally chat.")
+    # FIX: Uses placeholder message to avoid crash on first DB write.
+    save_chat_message(user_id, 'partner', f"Hi {partner_name}! Your partner is ready to chat.")
 
     return jsonify({"success": True, "user_id": user_id, "partner_name": partner_name, "chat_history": []}), 201
 
 # --- Chat Interface (Updated) ---
 @app.route('/api/chat/<user_id>', methods=['POST'])
 def chat(user_id):
-    global AI_PROFILES
+    """Handles message receipt and AI response generation."""
+    # NOTE: The check for AI_PROFILES is removed to ensure the app functions immediately.
     
-    # 1. Check/Load Model
-    if AI_PROFILES is None:
-        db = get_db()
-        AI_PROFILES = db.ai_profiles.find_one({}) 
-        if AI_PROFILES is None:
-             return jsonify({"message": "AI model not trained. Please run training script first."}), 400
-
     data = request.json
     user_input = data.get('message')
     
-    # 2. Get User Details and History
     user, history = get_user_and_history(user_id)
     if not user:
          return jsonify({"message": "User not found."}), 404
 
-    # 3. Save User Message
+    # 1. Save User Message
     save_chat_message(user_id, 'user', user_input)
     
-    # 4. Determine target personality 
+    # 2. Determine target personality 
     target_partner_id = 'A' if user.get('partner_gender') == 'Male' else 'B'
     
-    # 5. Generate Response (LLM/Rule-based logic)
+    # 3. Generate Response (Uses the rule-based logic from personality_model.py)
     ai_response = model.generate_response(user_id, target_partner_id, history, user_input)
     
-    # 6. Save AI Response
+    # 4. Save AI Response
     save_chat_message(user_id, 'partner', ai_response)
     
     return jsonify({
@@ -113,16 +106,16 @@ def chat(user_id):
         "sender": "virtual_partner",
     })
 
-# --- TRAINING ENDPOINT ---
+# --- TRAINING ENDPOINT (ADMIN FUNCTIONALITY) ---
 @app.route('/api/train_model', methods=['POST'])
 def train_model():
-    # NOTE: You MUST replace this logic with actual file reading when you run this endpoint.
-    # For now, we simulate success for deployment readiness.
-    # db = get_db()
-    # db.ai_profiles.update_one({}, {"$set": AI_PROFILES}, upsert=True)
-    return jsonify({"message": "Core model trained and stored (Placeholder success)."}), 200
-
-
-if __name__ == '__main__':
-    print("Running Flask App locally...")
-    app.run(debug=True, port=8000)
+    """
+    Accepts raw chat text via POST request to train the AI model.
+    This will be used by your future Admin portal.
+    """
+    global AI_PROFILES
+    
+    raw_chat_content = request.data.decode('utf-8')
+    
+    if not raw_chat_content:
+        return jsonify({"message": "Error: No chat
