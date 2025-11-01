@@ -1,34 +1,33 @@
-# backend/database.py (FINAL CORRECTED VERSION)
+# backend/database.py
 
 from pymongo import MongoClient
 import os
 from datetime import datetime
 import uuid 
 
-# --- Global Client Initialization ---
-# We define the client outside the function to initialize it once
-# We still connect lazily inside get_db() to use the MONGO_URI from os.environ
+# --- Global Client Initialization for Connection Pooling ---
 CLIENT = None 
 
 def get_db():
     """
     Establishes and returns a connection to the MongoDB database.
+    This function initializes the connection client once (globally).
     """
     global CLIENT
     
-    # 1. Check if the client is already connected
+    # If the client is already connected, return the database instance immediately
     if CLIENT is not None:
         return CLIENT['VirtualPartnerDB']
         
-    # 2. Get connection string from environment variables
+    # 1. Get connection string from environment variables
     MONGO_URI = os.environ.get('MONGO_URI')
     if not MONGO_URI:
         raise EnvironmentError("MONGO_URI environment variable not set.")
     
-    # 3. Connect to the Atlas cluster and store the client
-    CLIENT = MongoClient(MONGO_URI)
+    # 2. Connect to the Atlas cluster (5-second timeout for cloud stability)
+    CLIENT = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000) 
     
-    # 4. Return the specific database instance
+    # 3. Return the specific database instance
     return CLIENT['VirtualPartnerDB']
 
 def create_user(user_data):
