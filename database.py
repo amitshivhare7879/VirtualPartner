@@ -1,117 +1,68 @@
-# backend/app.py (KEY MODIFICATIONS)
-# ... (imports) ...
-from database import get_db, create_user, get_user_and_history, save_chat_message
+# backend/database.py
+
+from pymongo import MongoClient
+import os
 from datetime import datetime
-import uuid # For generating unique user IDs
-from flask_cors import CORS # Crucial for free-tier deployment (Frontend needs to talk to Backend)
+import uuid # Used for generating unique user IDs in register endpoint
 
-# ... (load_dotenv, app = Flask(__name__), model = DualPersonalityModel())
-CORS(app) # Enable CORS for frontend communication
+def get_db():
+    """
+    Establishes and returns a connection to the MongoDB database.
+    MONGO_URI is expected to be set as an environment variable by Render.
+    """
+    # 1. Get connection string from environment variables
+    MONGO_URI = os.environ.get('MONGO_URI')
+    if not MONGO_URI:
+        raise EnvironmentError("MONGO_URI environment variable not set.")
+    
+    # 2. Connect to the Atlas cluster
+    client = MongoClient(MONGO_URI)
+    
+    # 3. Use 'VirtualPartnerDB' as the specific database name inside the cluster
+    db = client['VirtualPartnerDB'] 
+    return db
 
-# --- Training Endpoint (Updated to use your provided files) ---
-@app.route('/api/train_model', methods=['POST'])
-def train_model():
-    # This endpoint is run ONCE by you, the developer, to train the core model 
-    # using the provided four chat files.
-    # NOTE: This requires replacing the placeholder data in the last response 
-    # with the actual content of the four files when you run this locally/on your server.
-    # For simplicity, we assume success for the API demo:
-    # (This is where the model.extract_patterns(parsed_data) call happens)
-    # Global AI_PROFILES is set here.
-    # AI_PROFILES = model.extract_patterns(parsed_data)
+def create_user(user_data):
+    """
+    Saves a new user profile during the onboarding/registration process.
+    """
+    db = get_db()
+    
+    # Ensure user_id is unique before insertion
+    if 'user_id' not in user_data:
+        user_data['user_id'] = str(uuid.uuid4())
+        
+    user_data['created_at'] = datetime.utcnow()
+    # The 'users' collection stores user profile data
+    db.users.insert_one(user_data)
+    return user_data
 
-    # Once trained, store the resulting personality profiles in the database
-    # db = get_db()
-    # db.ai_profiles.update_one({}, {"$set": AI_PROFILES}, upsert=True)
+def get_user_and_history(user_id):
+    """
+    Retrieves a user's profile and their complete chat history for session persistence.
+    """
+    db = get_db()
+    
+    # Find the user profile
+    user = db.users.find_one({'user_id': user_id})
+    
+    # Retrieve the chat history, sorted chronologically
+    history = list(db.chats.find({'user_id': user_id}).sort('timestamp', 1))
+    
+    return user, history
 
-    # ... (rest of the success response)
-    return jsonify({"message": "Core model trained and stored."}), 200
-
-# --- User Flow: Login/Signup & Session Persistence ---
-@app.route('/api/auth/login', methods=['POST'])
-def login():
-    data = request.json
-    # 1. Check for existing user (Simulated)
-    # user = db.users.find_one({'email': data['email'], 'password': data['password']})
-    user, history = get_user_and_history(data.get('user_id')) # Simplified by looking for an ID
-
-    if user:
-        # Returning User: Continue previous chat
-        partner_name = user['partner_name']
-
-    else:
-        # New User: Requires Onboarding
-        return jsonify({"needs_onboarding": True}), 200
-
-    return jsonify({
-        "success": True, 
-        "user_id": user['user_id'], 
-        "partner_name": partner_name,
-        "chat_history": history
-    }), 200
-
-# --- Onboarding Flow: Gender, Name Partner ---
-@app.route('/api/auth/register', methods=['POST'])
-def register():
-    data = request.json
-    user_id = str(uuid.uuid4()) # Generate unique ID
-
-    # Choose gender -> Bot is opposite gender partner
-    user_gender = data.get('user_gender')
-    partner_gender = 'Female' if user_gender == 'Male' else 'Male'
-
-    # Let user name their virtual partner
-    partner_name = data.get('partner_name')
-
-    new_user = {
+def save_chat_message(user_id, sender, content):
+    """
+    Saves a chat message (from user or AI partner) for conversation history and adaptive learning.
+    """
+    db = get_db()
+    
+    message = {
         'user_id': user_id,
-        'email': data.get('email'), # Login/Signup
-        'password': data.get('password'),
-        'user_gender': user_gender,
-        'partner_gender': partner_gender,
-        'partner_name': partner_name
+        'sender': sender, # 'user' or 'partner'
+        'content': content,
+        'timestamp': datetime.utcnow()
     }
-
-    # Save user to DB and provide initial message
-    create_user(new_user)
-    save_chat_message(user_id, 'partner', f"Hi {partner_name}!")
-
-    return jsonify({"success": True, "user_id": user_id, "partner_name": partner_name, "chat_history": []}), 201
-
-# --- Chat Interface (Updated) ---
-@app.route('/api/chat/<user_id>', methods=['POST'])
-def chat(user_id):
-    # ... (Same chat logic as before, but using database.py for history/persistence) ...
-    # (Save user input and AI response using save_chat_message)
-    # (LLM integration/model.generate_response logic remains the same)
-    # ...
-
-    data = request.json
-    user_input = data.get('message')
-
-    # 1. Get User Details
-    user, _ = get_user_and_history(user_id)
-    if not user:
-         return jsonify({"message": "User not found."}), 404
-
-    # 2. Save User Message
-    save_chat_message(user_id, 'user', user_input)
-
-    # 3. Get AI Profile (A=Male, B=Female based on your training data)
-    # Determine target_partner_id based on the user's selected partner_gender
-    target_partner_id = 'A' if user['partner_gender'] == 'Male' else 'B'
-
-    # 4. Generate Response (LLM/Rule-based logic)
-    # NOTE: You MUST load AI_PROFILES from the database here 
-    # (This is the adaptive learning/context memory step)
-
-    # For this step, we'll use the rule-based example from the previous response:
-    ai_response = model.generate_response(user_id, target_partner_id, [], user_input)
-
-    # 5. Save AI Response (Adaptive Learning)
-    save_chat_message(user_id, 'partner', ai_response)
-
-    return jsonify({
-        "message": ai_response,
-        "sender": "virtual_partner",
-    })
+    # The 'chats' collection stores the conversation history
+    db.chats.insert_one(message)
+    return message
