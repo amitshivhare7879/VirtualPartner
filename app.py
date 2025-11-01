@@ -118,4 +118,4 @@ def train_model():
     raw_chat_content = request.data.decode('utf-8')
     
     if not raw_chat_content:
-        return jsonify({"message": "Error: No chat
+        return jsonify({"message": "Error: No chat})
