@@ -54,10 +54,18 @@ class DualPersonalityModel:
         system_prompt = f"You are a virtual partner with a strong personality. Your persona is: {personality_style}."
         
         # 2. Build the Conversation History (Context Memory)
+        # chat_history = []
+        # for msg in conversation_history[-10:]:
+        #     role = "user" if msg['sender'] == 'user' else "model"
+        #     chat_history.append(types.Content(role=role, parts=[types.Part.from_text(msg['content'])]))
+        
+        # # 3. Add the Current Message
+        # chat_history.append(types.Content)
         chat_history = []
         for msg in conversation_history[-10:]:
             role = "user" if msg['sender'] == 'user' else "model"
+            # FIX: Ensure the Content object construction is on ONE LINE or properly parenthesized.
             chat_history.append(types.Content(role=role, parts=[types.Part.from_text(msg['content'])]))
         
         # 3. Add the Current Message
-        chat_history.append(types.Content)
+        chat_history.append(types.Content(role="user", parts=[types.Part.from_text(user_input)]))
