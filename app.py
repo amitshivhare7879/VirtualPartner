@@ -1,4 +1,4 @@
-# backend/app.py
+# backend/app.py (FINAL VERSION - SYNTAX FIXED AND LLM READY)
 
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
@@ -19,7 +19,7 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app) 
 
-# 2. Initialize the AI Model (Uses default personalities from personality_model.py)
+# 2. Initialize the AI Model
 model = DualPersonalityModel()
 AI_PROFILES = None # Global variable for future model persistence
 
@@ -58,6 +58,7 @@ def register():
     user_id = str(uuid.uuid4())
     user_gender = data.get('user_gender')
     
+    # Partner is the opposite gender
     partner_gender = 'Female' if user_gender == 'Male' else 'Male'
     partner_name = data.get('partner_name')
 
@@ -79,7 +80,7 @@ def register():
 # --- Chat Interface (Updated) ---
 @app.route('/api/chat/<user_id>', methods=['POST'])
 def chat(user_id):
-    """Handles message receipt and AI response generation."""
+    """Handles message receipt and LLM response generation."""
     
     data = request.json
     user_input = data.get('message')
@@ -91,10 +92,10 @@ def chat(user_id):
     # 1. Save User Message
     save_chat_message(user_id, 'user', user_input)
     
-    # 2. Determine target personality 
+    # 2. Determine target personality ID (A or B)
     target_partner_id = 'A' if user.get('partner_gender') == 'Male' else 'B'
     
-    # 3. Generate Response (Uses the rule-based logic from personality_model.py)
+    # 3. Generate Response (LLM is called here)
     ai_response = model.generate_response(user_id, target_partner_id, history, user_input)
     
     # 4. Save AI Response
@@ -116,7 +117,7 @@ def train_model():
     raw_chat_content = request.data.decode('utf-8')
     
     if not raw_chat_content:
-        # SYNTAX FIX APPLIED HERE: string now correctly closed
+        # Syntax Fix applied here
         return jsonify({"message": "Error: No chat content provided in the request body."}), 400
         
     try:

@@ -1,29 +1,20 @@
+# backend/parser.py (ABSTRACTED)
+
 import re
 from datetime import datetime
 
-# --- Configuration based on identified chat data ---
-# Sender A: Amit Shivhare (Male)
-# Sender B: Ritu / CHEATER / Ritu Gadhi (Female)
-SENDER_A_NAME = "Amit Shivhare"
-SENDER_B_NAMES = ["Rittuu", "CHEATER", "Ritu Gadhi"] # Use a list to catch all variants
+# --- Configuration for Sender Mapping (Abstracted from original chats) ---
+# NOTE: These names must be modified manually if the user uploads files with different sender names.
+SENDER_MALE_VARIANTS = ["Amit Shivhare", "AMIT Shivhare", "Amit Shivhare😍"] # Based on original data
+SENDER_FEMALE_VARIANTS = ["Rittuu", "CHEATER", "Ritu Gadhi", "Rittuu Baacha"] # Based on original data
 
 def parse_chat(file_content: str) -> list:
     """
     Parses WhatsApp chat export content into a list of message dictionaries.
-    Handles multiple date formats and sender names.
+    Assigns normalized IDs 'A' (Male) or 'B' (Female) based on variants.
     """
     messages = []
-    # Regex to handle various date formats (e.g., 'dd/mm/yy, hh:mm xm', 'mm/dd/yy, hh:mm')
-    # and capture the sender name and message content.
-    # Pattern: [Date/Time] - [Sender]: [Message]
-    
-    # Combined pattern to handle all observed variations:
-    # 1. Date/Time: dd/mm/yy, hh:mm xm (or 24h)
-    # 2. Separator: -
-    # 3. Sender: Any combination of chars (including emojis) followed by a colon
-    # 4. Message: The rest of the line
-    
-    # A robust regex might be:
+    # Combined regex pattern to capture Date, Time, Sender Name, and Message Content
     message_pattern = re.compile(
         r'^(\d{1,2}/\d{1,2}/\d{2,4}),?\s+(\d{1,2}:\d{2}(?:\s?[paAPM]{2})?) - ([^:]+):\s+(.*)$',
         re.MULTILINE | re.IGNORECASE
@@ -38,20 +29,16 @@ def parse_chat(file_content: str) -> list:
         if match:
             date_str, time_str, sender_full, content = match.groups()
             
-            # Clean up the sender name by removing trailing contact emojis (e.g., '💜', '💖😜', '❤️')
             sender = sender_full.strip()
-            for name_variant in [SENDER_A_NAME] + SENDER_B_NAMES:
-                if sender.startswith(name_variant):
-                    sender = name_variant
-                    break
+            person_id = None
             
-            # Determine normalized ID/Gender for Dual Personality System
-            if SENDER_A_NAME in sender:
-                person_id = 'A' # Male, The Guider
-            elif any(name in sender for name in SENDER_B_NAMES):
-                person_id = 'B' # Female, The Emotive
+            # --- Determine normalized ID based on observed variants ---
+            if any(name in sender for name in SENDER_MALE_VARIANTS):
+                person_id = 'A' # Male Archetype
+            elif any(name in sender for name in SENDER_FEMALE_VARIANTS):
+                person_id = 'B' # Female Archetype
             else:
-                continue # Skip if sender cannot be identified (e.g., group notifications)
+                continue # Skip if sender cannot be identified
             
             messages.append({
                 'timestamp_raw': f"{date_str} {time_str}".strip(),
@@ -60,7 +47,3 @@ def parse_chat(file_content: str) -> list:
             })
             
     return messages
-
-# Example usage (when imported by app.py):
-# with open('path/to/chat.txt', 'r', encoding='utf-8') as f:
-#     data = parse_chat(f.read())
