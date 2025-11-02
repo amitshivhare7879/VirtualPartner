@@ -60,4 +60,4 @@ class DualPersonalityModel:
             chat_history.append(types.Content(role=role, parts=[types.Part.from_text(msg['content'])]))
         
         # 3. Add the Current Message
-        chat_history.append(types.Content
+        chat_history.append(types.Content)
