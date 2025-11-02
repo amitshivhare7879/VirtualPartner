@@ -1,10 +1,10 @@
-# backend/personality_model.py (FINAL VERSION - ABSTRACTED)
+# backend/personality_model.py (FINAL VERSION - SYNTAX FIXED)
 
 import os
 from google import genai
 from google.genai import types
 
-# --- CONFIGURATION: Base Personality Definitions (Abstracted) ---
+# --- Configuration: Base Personality Definitions (Abstracted) ---
 KEY_PATTERNS = {
     # Partner A (Male Archetype: Supportive Guide)
     'A': {
@@ -23,17 +23,17 @@ KEY_PATTERNS = {
 class DualPersonalityModel:
     def __init__(self, key_patterns=KEY_PATTERNS):
         self.profiles = key_patterns 
-        # Initialize Gemini Client (Requires GEMINI_API_KEY in Render Environment)
+        
         try:
-            # We initialize the client but it requires the key to be set in the environment
+            # Initialize Gemini Client (Requires GEMINI_API_KEY)
             self.client = genai.Client()
         except Exception as e:
+            # Client initialization might fail if key is missing, handle gracefully
             print(f"Gemini Client initialization failed: {e}. Check API key.")
             self.client = None
 
     def extract_patterns(self, parsed_messages: list):
         """Placeholder for future advanced pattern extraction."""
-        # For now, training is only done via the system prompt (above).
         return self.profiles
 
     def generate_response(self, user_id, target_partner_id, conversation_history, user_input):
@@ -41,31 +41,40 @@ class DualPersonalityModel:
         Generates an LLM response using the stored personality prompt and conversation history.
         """
         if self.client is None:
-            # Fallback to rule-based response if the LLM client fails (e.g., missing API key)
+            # Fallback when API key is missing or client failed to initialize
             if target_partner_id == 'A':
-                return "I'm experiencing connectivity issues right now. I'm listening, beta. 😊"
+                return "I'm having signal issues, beta. Send that again? 😊"
             else:
-                return "Ugh, my signal's bad, yaar! Say that again? 🙄"
+                return "Ugh, network fail ho gaya! Kya bol rahe ho, yaar? 🙄"
 
         profile = self.profiles.get(target_partner_id, {})
         personality_style = profile.get('style', 'A friendly and helpful chatbot.')
         
-        # 1. Build the System Prompt (The Persona)
+        # 1. Build the System Prompt
         system_prompt = f"You are a virtual partner with a strong personality. Your persona is: {personality_style}."
         
         # 2. Build the Conversation History (Context Memory)
-        # chat_history = []
-        # for msg in conversation_history[-10:]:
-        #     role = "user" if msg['sender'] == 'user' else "model"
-        #     chat_history.append(types.Content(role=role, parts=[types.Part.from_text(msg['content'])]))
-        
-        # # 3. Add the Current Message
-        # chat_history.append(types.Content)
         chat_history = []
         for msg in conversation_history[-10:]:
             role = "user" if msg['sender'] == 'user' else "model"
-            # FIX: Ensure the Content object construction is on ONE LINE or properly parenthesized.
-            chat_history.append(types.Content(role=role, parts=[types.Part.from_text(msg['content'])]))
+            # SYNTAX FIX APPLIED: Ensure types.Content is closed on the same line.
+            chat_history.append(types.Content(role=role, parts=[types.Part.from_text(msg['content'])])) 
         
         # 3. Add the Current Message
         chat_history.append(types.Content(role="user", parts=[types.Part.from_text(user_input)]))
+
+        try:
+            # 4. Call the LLM
+            response = self.client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=chat_history,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.8,
+                ),
+            )
+            return response.text
+        
+        except Exception as e:
+            print(f"AI Error: {e}")
+            return "Oops! I seem to have lost my train of thought. Can you rephrase that for me?"
