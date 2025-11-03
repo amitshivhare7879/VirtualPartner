@@ -9,7 +9,7 @@ from datetime import datetime
 from flask_cors import CORS 
 # ADDED: Import genai and types to satisfy the module dependency checks
 # NEW: (Correctly imports the client and types separately)
-from google import genai 
+# from google import genai 
 # from google.genai import types
 
 # Core Modules (Imports verified)
