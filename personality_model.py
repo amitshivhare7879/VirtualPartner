@@ -1,7 +1,8 @@
 # backend/personality_model.py (FINAL, ROBUST VERSION)
 
 import os
-from google import genai
+# NEW: (Correctly imports the client and types separately)
+from google import genai 
 from google.genai import types
 
 # --- Configuration: Base Personality Definitions (Abstracted) ---
