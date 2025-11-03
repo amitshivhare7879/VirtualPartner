@@ -1,4 +1,5 @@
 # backend/app.py (FINAL VERSION - SYNTAX FIXED AND LLM READY)
+# backend/app.py (FINAL, STABLE VERSION)
 
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
@@ -6,11 +7,14 @@ import os
 import uuid 
 from datetime import datetime 
 from flask_cors import CORS 
+# ADDED: Import genai and types to satisfy the module dependency checks
+from google import genai, types # <--- ADD THIS LINE (if using the LLM logic)
 
 # Core Modules (Imports verified)
 from database import get_db, create_user, get_user_and_history, save_chat_message
 from parser import parse_chat
 from personality_model import DualPersonalityModel
+# ... (rest of the file remains the same)
 
 
 load_dotenv()
