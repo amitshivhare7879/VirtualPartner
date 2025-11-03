@@ -10,7 +10,7 @@ from flask_cors import CORS
 # ADDED: Import genai and types to satisfy the module dependency checks
 # NEW: (Correctly imports the client and types separately)
 from google import genai 
-from google.genai import types
+# from google.genai import types
 
 # Core Modules (Imports verified)
 from database import get_db, create_user, get_user_and_history, save_chat_message

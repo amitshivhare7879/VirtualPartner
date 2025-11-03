@@ -1,84 +1,48 @@
-# backend/personality_model.py (FINAL, ROBUST VERSION)
+# backend/personality_model.py (FINAL STABLE VERSION - RULE-BASED)
 
-import os
-# NEW: (Correctly imports the client and types separately)
-from google import genai 
-from google.genai import types
+import re
+from collections import Counter
+import emoji
+# No LLM imports here
 
-# --- Configuration: Base Personality Definitions (Abstracted) ---
+# --- CONFIGURATION: Define the two required personality profiles ---
 KEY_PATTERNS = {
-    # Partner A (Male Archetype)
-    'A': {
-        'gender': 'Male', 
-        'role': 'Supportive Guide',
-        'style': "You are the male partner. Your tone is often gentle, caring, and protective. Use Hindi/English (Hinglish) slang like 'beta', 'dawai', 'accha baacha'. Be empathetic. DO NOT use generic AI language.",
-    },
-    # Partner B (Female Archetype)
-    'B': {
-        'gender': 'Female', 
-        'role': 'Playful Companion',
-        'style': "You use expressive emojis and extensive Hinglish slang (like 'yaar', 'hn', 'okkk'), and a playful, emotive tone. Always ask follow-up questions. DO NOT use generic AI language.",
-    }
+    # Partner A (Male Archetype: Supportive Guide)
+    'A': {'gender': 'Male', 'role': 'Supportive Guide', 'top_emojis': ['😊', '💜'],},
+    # Partner B (Female Archetype: Playful Companion)
+    'B': {'gender': 'Female', 'role': 'Playful Companion', 'top_emojis': ['🙄', '😘'],},
 }
 
 class DualPersonalityModel:
     def __init__(self, key_patterns=KEY_PATTERNS):
         self.profiles = key_patterns 
-        self.client = None # Client starts as None
-
-        # DELAYED, CONDITIONAL CLIENT INITIALIZATION
-        if os.environ.get("GEMINI_API_KEY"):
-            try:
-                # Client is only created if the key exists in the environment
-                self.client = genai.Client()
-            except Exception as e:
-                # Log any failure during creation but let the server start
-                print(f"Gemini Client creation failed at startup: {e}")
-        else:
-            print("WARNING: GEMINI_API_KEY environment variable is missing. AI responses will be disabled.")
-
+        self.client = None # Client is explicitly None
 
     def extract_patterns(self, parsed_messages: list):
-        """Placeholder for future advanced pattern extraction."""
         return self.profiles
 
     def generate_response(self, user_id, target_partner_id, conversation_history, user_input):
         """
-        Generates an LLM response or a deterministic fallback response.
+        Generates an empathetic and stable rule-based response.
         """
-        # --- Check 1: Fallback if Client is Missing ---
-        if self.client is None:
-            # Fallback (deterministic response based on partner)
-            if target_partner_id == 'A':
-                return "Our connection is down right now, beta. Try again later. 😊"
-            else:
-                return "Ugh, my signal is totally gone, yaar! 😭"
-
-        # --- Check 2: LLM Call ---
         profile = self.profiles.get(target_partner_id, {})
-        personality_style = profile.get('style', 'A friendly and helpful chatbot.')
-        
-        system_prompt = f"You are a virtual partner. Your persona is: {personality_style}."
-        
-        chat_history = []
-        for msg in conversation_history[-10:]:
-            role = "user" if msg['sender'] == 'user' else "model"
-            chat_history.append(types.Content(role=role, parts=[types.Part.from_text(msg['content'])])) 
-        
-        chat_history.append(types.Content(role="user", parts=[types.Part.from_text(user_input)]))
+        emoji_1 = profile['top_emojis'][0] 
+        user_input_lower = user_input.lower()
 
-        try:
-            response = self.client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=chat_history,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=0.8,
-                ),
-            )
-            return response.text
-        
-        except Exception as e:
-            # Fallback for API execution errors (e.g., rate limit)
-            print(f"AI Execution Error: {e}")
-            return "Oops! I hit a limit. Can you rephrase that? I still want to talk to you!"
+        # --- Partner A: Supportive Guide (Male) ---
+        if target_partner_id == 'A':
+            if 'stress' in user_input_lower or 'pareshan' in user_input_lower:
+                return f"Hey, take a deep breath, beta. I’m here just to listen. {emoji_1}"
+            if 'khana' in user_input_lower or 'dawai' in user_input_lower:
+                return f"Did you eat on time? Please take care of yourself, accha baacha. {emoji_1}"
+            return f"I'm listening. Aur tumhari taraf se kya scene hai? {emoji_1}"
+
+        # --- Partner B: Playful Companion (Female) ---
+        if target_partner_id == 'B':
+            if 'love' in user_input_lower or 'miss' in user_input_lower:
+                return f"Accha ji? Bade yaad aa rahe hain aaj! Toh phir kya karna chahiye? {emoji_1}"
+            if 'sar dukh' in user_input_lower or 'pain' in user_input_lower:
+                return f"Ugh, take a break! Aaram kar lo yaar. {emoji_1}"
+            return f"Haan, okkk. Phir kya hua? Tell me more, don't leave me hanging! {emoji_1}"
+
+        return "I'm ready to chat now!"
