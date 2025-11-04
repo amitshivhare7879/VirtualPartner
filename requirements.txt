@@ -8,3 +8,4 @@ emoji         # To handle emoji counts and pattern recognition
 # pandas      # For better data manipulation during parsing
 gunicorn
 Flask-CORS
+google-genai

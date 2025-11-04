@@ -16,7 +16,12 @@ from flask_cors import CORS
 from database import get_db, create_user, get_user_and_history, save_chat_message
 from parser import parse_chat
 from personality_model import DualPersonalityModel
-# ... (rest of the file remains the same)
+try:
+    from google import genai
+    from google.genai import types # Correctly accesses types from the genai package
+except ImportError:
+    genai = None
+    types = None
 
 
 load_dotenv()
