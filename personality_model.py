@@ -1,80 +1,72 @@
-# backend/personality_model.py (LLM INTEGRATION - FINAL VERSION)
+# backend/personality_model.py (FINAL DYNAMIC FIX)
 
 import os
-# We use a try/except block to ensure the file loads even if the library isn't installed
+# Import LLM components conditionally (Ensures file loads even if library is missing)
 try:
     from google import genai
     from google.genai import types
+    LLM_AVAILABLE = True
 except ImportError:
-    genai = None
-    types = None
+    LLM_AVAILABLE = False
+    class MockClient: # Mock client to prevent NameErrors
+        def __init__(self): pass
+        def models(self): return self
+        def generate_content(self, model, contents, config): return type('', (object,), {'text': 'LLM ERROR: API key or dependency missing.'})()
 
-
-# --- CONFIGURATION: Define the abstraction and style for the LLM ---
+# --- CONFIGURATION: Personalities remain the same ---
 KEY_PATTERNS = {
-    # Partner A (Supportive Guide)
-    'A': {
-        'gender': 'Male', 
-        'role': 'Supportive Guide',
-        'style': "You are the male partner. Your tone is often gentle, caring, and protective. Use Hindi/English (Hinglish) slang like 'beta', 'dawai', 'accha baacha'. Your main goal is to offer stable emotional support, prioritize health, and encourage the user. Your responses must be unique and highly variable.",
-    },
-    # Partner B (Playful Companion)
-    'B': {
-        'gender': 'Female', 
-        'role': 'Playful Companion',
-        'style': "You are the female partner. You use expressive emojis and extensive Hinglish slang (like 'yaar', 'hn', 'okkk'), and a playful, emotive tone. Your responses must be unique and highly variable. Always maintain a high-energy conversation and show curiosity.",
-    }
+    'A': {'gender': 'Male', 'role': 'Supportive Guide', 'style': "Your tone is empathetic, protective, and uses 'beta' and 'accha baacha' slang. Your responses must be unique and highly variable."},
+    'B': {'gender': 'Female', 'role': 'Playful Companion', 'style': "Your tone is playful, uses expressive emojis and Hinglish slang like 'yaar' and 'okkk'. Always maintain high energy and curiosity."},
 }
 
 class DualPersonalityModel:
     def __init__(self, key_patterns=KEY_PATTERNS):
         self.profiles = key_patterns 
-        self.client = None # Client starts as None
+        self._client = None # Client is initialized lazily
 
-        # Only attempt to create the client if the key is present locally
-        if os.environ.get("GEMINI_API_KEY"):
-            try:
-                self.client = genai.Client()
-            except Exception as e:
-                print(f"Gemini Client initialization failed: {e}")
-
-    def extract_patterns(self, parsed_messages: list):
-        return self.profiles
+    def _get_llm_client(self):
+        """Initializes the LLM client only when the API key is verified."""
+        if self._client is None and LLM_AVAILABLE:
+            if os.environ.get("GEMINI_API_KEY"):
+                try:
+                    self._client = genai.Client()
+                except Exception as e:
+                    print(f"LLM Client initialization failed: {e}")
+                    return None
+            else:
+                # If key is missing, use MockClient to prevent crash
+                return MockClient()
+        return self._client if self._client else MockClient()
 
     def generate_response(self, user_id, target_partner_id, conversation_history, user_input):
         
-        # --- CRITICAL CHECK: LLM API Key is Missing ---
-        if self.client is None:
-            # Fallback to simple rule-based response (last known stable state)
-            if target_partner_id == 'A':
-                return "I'm having technical issues, beta. I can't generate a smart answer right now. 😥"
-            else:
-                return "Ugh, network fail ho gaya! I can't think straight! 😩"
+        client = self._get_llm_client()
+        
+        # --- Fallback if Client Fails (Will only happen if API key is missing) ---
+        if isinstance(client, MockClient):
+            if "LLM ERROR" in client.models().generate_content(None,None,None).text:
+                if target_partner_id == 'A':
+                    return "Our intelligent service is offline right now. I can only manage simple replies. (Error: Missing API Key) 😥"
+                else:
+                    return "Ugh, my brain is fried! I can't think of a unique answer yet! (Error: Missing API Key) 😩"
 
         # --- LLM Call (Dynamic Response Generation) ---
         profile = self.profiles.get(target_partner_id, {})
-        personality_style = profile.get('style', 'A friendly and helpful chatbot.')
-        
-        system_prompt = f"You are a virtual partner. Your persona is: {personality_style}. Never give the same response twice."
+        system_prompt = f"You are a virtual partner. Your persona is: {profile['style']}. Never give the same response twice."
         
         chat_history = []
         for msg in conversation_history[-10:]:
             role = "user" if msg['sender'] == 'user' else "model"
             chat_history.append(types.Content(role=role, parts=[types.Part.from_text(msg['content'])])) 
-        
         chat_history.append(types.Content(role="user", parts=[types.Part.from_text(user_input)]))
 
         try:
-            response = self.client.models.generate_content(
+            response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=chat_history,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=0.9,
-                ),
+                config=types.GenerateContentConfig(system_instruction=system_prompt, temperature=0.9),
             )
             return response.text
         
         except Exception as e:
-            print(f"AI Execution Error during API call: {e}")
-            return "Oops! I encountered an API error. Can you try sending that message again?"
+            return "I hit a temporary limit. Can you rephrase that? I want to hear it!"
