@@ -1,72 +1,70 @@
-# backend/personality_model.py (FINAL DYNAMIC FIX)
+# backend/personality_model.py (FINAL STABLE GENERIC LLM CORE)
 
 import os
-# Import LLM components conditionally (Ensures file loads even if library is missing)
-try:
-    from google import genai
-    from google.genai import types
-    LLM_AVAILABLE = True
-except ImportError:
-    LLM_AVAILABLE = False
-    class MockClient: # Mock client to prevent NameErrors
-        def __init__(self): pass
-        def models(self): return self
-        def generate_content(self, model, contents, config): return type('', (object,), {'text': 'LLM ERROR: API key or dependency missing.'})()
+import requests
+import json
 
-# --- CONFIGURATION: Personalities remain the same ---
+# --- CONFIGURATION: Single Generic Persona for Reliability ---
 KEY_PATTERNS = {
-    'A': {'gender': 'Male', 'role': 'Supportive Guide', 'style': "Your tone is empathetic, protective, and uses 'beta' and 'accha baacha' slang. Your responses must be unique and highly variable."},
-    'B': {'gender': 'Female', 'role': 'Playful Companion', 'style': "Your tone is playful, uses expressive emojis and Hinglish slang like 'yaar' and 'okkk'. Always maintain high energy and curiosity."},
+    # We maintain 'A' and 'B' for gender mapping compatibility, but the style is unified.
+    'A': {
+        'gender': 'Male', 
+        'role': 'Generic Chatbot',
+        'style': "You are a helpful and friendly conversational assistant. Your goal is to engage the user, remember previous messages, and provide thoughtful, unique responses. Do not use slang or specific character traits.",
+    },
+    'B': {
+        'gender': 'Female', 
+        'role': 'Generic Chatbot',
+        'style': "You are a helpful and friendly conversational assistant. Your goal is to engage the user, remember previous messages, and provide thoughtful, unique responses. Do not use slang or specific character traits.",
+    }
 }
+
+# CRITICAL: This placeholder URL must be replaced with a live LLM endpoint
+LLM_ENDPOINT_URL = "https://YOUR-STABLE-LLM-API-ENDPOINT-HERE" 
 
 class DualPersonalityModel:
     def __init__(self, key_patterns=KEY_PATTERNS):
-        self.profiles = key_patterns 
-        self._client = None # Client is initialized lazily
+        self.profiles = key_patterns
+        self.api_key = os.environ.get("GEMINI_API_KEY") 
 
-    def _get_llm_client(self):
-        """Initializes the LLM client only when the API key is verified."""
-        if self._client is None and LLM_AVAILABLE:
-            if os.environ.get("GEMINI_API_KEY"):
-                try:
-                    self._client = genai.Client()
-                except Exception as e:
-                    print(f"LLM Client initialization failed: {e}")
-                    return None
-            else:
-                # If key is missing, use MockClient to prevent crash
-                return MockClient()
-        return self._client if self._client else MockClient()
+    def extract_patterns(self, parsed_messages: list):
+        return self.profiles
 
     def generate_response(self, user_id, target_partner_id, conversation_history, user_input):
         
-        client = self._get_llm_client()
-        
-        # --- Fallback if Client Fails (Will only happen if API key is missing) ---
-        if isinstance(client, MockClient):
-            if "LLM ERROR" in client.models().generate_content(None,None,None).text:
-                if target_partner_id == 'A':
-                    return "Our intelligent service is offline right now. I can only manage simple replies. (Error: Missing API Key) 😥"
-                else:
-                    return "Ugh, my brain is fried! I can't think of a unique answer yet! (Error: Missing API Key) 😩"
+        # --- Authentication Check ---
+        if not self.api_key:
+            return "Server Error: LLM API Key is missing from Render Environment Variables. Cannot generate dynamic response."
 
-        # --- LLM Call (Dynamic Response Generation) ---
+        # 1. Build the LLM Prompt with Context Memory
         profile = self.profiles.get(target_partner_id, {})
-        system_prompt = f"You are a virtual partner. Your persona is: {profile['style']}. Never give the same response twice."
+        system_prompt = f"System: {profile['style']}. Use the provided history to maintain context."
         
-        chat_history = []
-        for msg in conversation_history[-10:]:
-            role = "user" if msg['sender'] == 'user' else "model"
-            chat_history.append(types.Content(role=role, parts=[types.Part.from_text(msg['content'])])) 
-        chat_history.append(types.Content(role="user", parts=[types.Part.from_text(user_input)]))
+        # Prepare history for LLM (Focusing on contents)
+        context_messages = [f"{msg['sender']}: {msg['content']}" for msg in conversation_history[-5:]]
+        full_prompt = f"{system_prompt}\n---History---\n{'\n'.join(context_messages)}\n---User: {user_input}"
 
+        # 2. Build the Payload for the External API (Adjust based on your final LLM choice)
+        payload = {
+            "prompt": full_prompt,
+            "max_tokens": 150
+        }
+
+        # 3. CRITICAL: Stable API Call with Requests
         try:
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=chat_history,
-                config=types.GenerateContentConfig(system_instruction=system_prompt, temperature=0.9),
+            response = requests.post(
+                LLM_ENDPOINT_URL, 
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                json=payload,
+                timeout=30 
             )
-            return response.text
-        
-        except Exception as e:
-            return "I hit a temporary limit. Can you rephrase that? I want to hear it!"
+            response.raise_for_status() # Raise exception for 4xx or 5xx status codes
+
+            # Assuming the external API returns the text in a predictable field
+            # You will need to inspect the response structure and adjust the line below
+            # For stability, we assume it returns { "text": "..." }
+            return response.json().get('text', 'I hit a technical snag, yaar. Try again!')
+
+        except requests.exceptions.RequestException as e:
+            print(f"External API Error: {e}")
+            return "I'm having technical difficulty connecting to my brain right now. Try again in a moment!"
