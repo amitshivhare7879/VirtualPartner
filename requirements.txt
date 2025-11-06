@@ -1,11 +1,7 @@
+# backend/requirements.txt (Stable Dependencies)
 Flask
 pymongo
 python-dotenv
-nltk
-scikit-learn  # For simple vectorization/similarity analysis in the future
-emoji         # To handle emoji counts and pattern recognition
-# Optional for robustness:
-# pandas      # For better data manipulation during parsing
 gunicorn
 Flask-CORS
-google-genai
+requests  #-- We will rely on this library for stability
