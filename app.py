@@ -250,24 +250,49 @@ def register():
     try:
         # Handle request parsing
         if not request.is_json:
+            print("Registration Error: Request is not JSON")
             return jsonify({"error": "Content-Type must be application/json"}), 400
         
         data = request.get_json()
         if not data:
+            print("Registration Error: No data in request")
             return jsonify({"error": "Invalid JSON in request body"}), 400
+        
+        print(f"Registration attempt - Data received: {list(data.keys())}")
         
         username = data.get('username')
         password = data.get('password')
         gender = data.get('gender', 'other')
         bot_name = data.get('bot_name', 'Virtual Partner')
         
-        if not username or not password:
-            return jsonify({"error": "Username and password required"}), 400
+        # Trim and validate
+        if username:
+            username = username.strip()
+        if password:
+            password = password.strip()
+        if bot_name:
+            bot_name = bot_name.strip()
+        
+        print(f"Registration attempt - Username: '{username}', Password length: {len(password) if password else 0}, Gender: {gender}, Bot name: '{bot_name}'")
+        
+        if not username or len(username) == 0:
+            print("Registration Error: Username is empty")
+            return jsonify({"error": "Username is required"}), 400
+        
+        if not password or len(password) == 0:
+            print("Registration Error: Password is empty")
+            return jsonify({"error": "Password is required"}), 400
+        
+        if len(username) < 3:
+            return jsonify({"error": "Username must be at least 3 characters long"}), 400
+        
+        if len(password) < 3:
+            return jsonify({"error": "Password must be at least 3 characters long"}), 400
         
         if gender not in ['male', 'female', 'other']:
             gender = 'other'
         
-        if not bot_name or not bot_name.strip():
+        if not bot_name or len(bot_name) == 0:
             bot_name = 'Virtual Partner'
         
         if USE_SUPABASE:
@@ -305,15 +330,20 @@ def register():
                     raise  # Re-raise to be caught by outer exception handler
         else:
             # Memory storage
-            if memory_find_user(username):
+            print(f"Using in-memory storage for registration")
+            existing_user = memory_find_user(username)
+            if existing_user:
+                print(f"Username '{username}' already exists")
                 return jsonify({"error": "Username already exists"}), 400
             
+            print(f"Creating new user in memory: {username}")
             user_id = memory_create_user(
                 username, 
                 generate_password_hash(password),
                 gender,
-                bot_name.strip()
+                bot_name
             )
+            print(f"User created successfully with ID: {user_id}")
         
         return jsonify({
             "message": "User registered successfully",
