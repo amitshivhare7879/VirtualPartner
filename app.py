@@ -39,10 +39,14 @@ if not USE_SUPABASE:
 # Gemini Configuration
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    print("✅ Gemini API Connected!")
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        print("✅ Gemini API Connected!")
+    except Exception as e:
+        print(f"⚠️ Gemini API Configuration Error: {e}")
+        GEMINI_API_KEY = ''  # Reset if configuration fails
 else:
-    print("⚠️ Gemini API key not found")
+    print("⚠️ Gemini API key not found - app will start but AI features may not work")
 
 # Base system prompt template
 def get_system_prompt(user_gender, bot_name):
@@ -113,6 +117,9 @@ def filter_connection_messages(messages):
 
 def get_ai_response(user_message, conversation_history, user_gender="other", bot_name="Virtual Partner"):
     """Get response from Gemini API with gender-aware context"""
+    if not GEMINI_API_KEY:
+        return f"I'm sorry, but I'm not properly configured right now. Please check the server configuration. 😔"
+    
     try:
         model = genai.GenerativeModel('gemini-2.0-flash')
         
@@ -405,7 +412,8 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "message": "Server is running",
-        "database": "Supabase" if USE_SUPABASE else "In-Memory"
+        "database": "Supabase" if USE_SUPABASE else "In-Memory",
+        "gemini_configured": bool(GEMINI_API_KEY)
     }), 200
 
 
