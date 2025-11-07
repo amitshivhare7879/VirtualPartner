@@ -210,20 +210,21 @@
             color: #4caf50;
         }
 
-        .logout-btn {
+        .settings-btn, .logout-btn {
             background: #f5f5f5;
             border: none;
             padding: 10px;
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.3s;
+            margin-left: 8px;
         }
 
-        .logout-btn:hover {
+        .settings-btn:hover, .logout-btn:hover {
             background: #e0e0e0;
         }
 
-        .logout-btn svg {
+        .settings-btn svg, .logout-btn svg {
             width: 20px;
             height: 20px;
             stroke: #666;
@@ -394,6 +395,93 @@
         .show-flex {
             display: flex !important;
         }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+            color: #333;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 32px;
+            color: #666;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .modal-close:hover {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-footer {
+            padding: 24px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
     </style>
 </head>
 <body>
@@ -440,7 +528,7 @@
             </div>
 
             <button id="authBtn" class="btn btn-primary">Sign In</button>
-            <button id="toggleBtn" class="btn btn-link">Need an account? Register</button>
+            <button id="toggleBtn" class="btn btn-link">Need an account? Register here</button>
         </div>
     </div>
 
@@ -463,7 +551,13 @@
                     <div class="username" id="currentUsername"></div>
                     <div class="status">Online</div>
                 </div>
-                <button class="logout-btn" id="logoutBtn">
+                <button class="settings-btn" id="settingsBtn" title="Edit Profile">
+                    <svg fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                </button>
+                <button class="logout-btn" id="logoutBtn" title="Logout">
                     <svg fill="none" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                     </svg>
@@ -480,6 +574,35 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                 </svg>
             </button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Profile</h2>
+                <button class="modal-close" id="closeSettingsModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="settingsErrorMessage" class="error-message hidden"></div>
+                <div class="form-group">
+                    <label>Your Gender</label>
+                    <select id="editGender" style="width: 100%; padding: 14px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 15px; background: white;">
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Bot Name</label>
+                    <input type="text" id="editBotName" placeholder="Name your virtual partner">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
+                <button class="btn btn-primary" id="saveSettingsBtn">Save Changes</button>
+            </div>
         </div>
     </div>
 
@@ -508,12 +631,40 @@
         const messagesContainer = document.getElementById('messagesContainer');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
+        
+        // Settings modal elements
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsModal = document.getElementById('settingsModal');
+        const closeSettingsModal = document.getElementById('closeSettingsModal');
+        const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+        const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+        const editGender = document.getElementById('editGender');
+        const editBotName = document.getElementById('editBotName');
+        const settingsErrorMessage = document.getElementById('settingsErrorMessage');
 
         // Event Listeners
         authBtn.addEventListener('click', handleAuth);
         toggleBtn.addEventListener('click', toggleAuthMode);
         logoutBtn.addEventListener('click', handleLogout);
         sendBtn.addEventListener('click', sendMessage);
+        settingsBtn.addEventListener('click', openSettingsModal);
+        closeSettingsModal.addEventListener('click', closeSettings);
+        cancelSettingsBtn.addEventListener('click', closeSettings);
+        saveSettingsBtn.addEventListener('click', saveProfileSettings);
+        
+        // Close modal when clicking outside
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                closeSettings();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
+                closeSettings();
+            }
+        });
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
         });
@@ -538,7 +689,7 @@
         function toggleAuthMode() {
             isRegistering = !isRegistering;
             authBtn.textContent = isRegistering ? 'Create Account' : 'Sign In';
-            toggleBtn.textContent = isRegistering ? 'Already have an account? Sign in' : 'Need an account? Register';
+            toggleBtn.textContent = isRegistering ? 'Already have an account? Sign in instead' : 'Need an account? Register here';
             
             // Show/hide registration fields
             if (isRegistering) {
@@ -591,7 +742,14 @@
                     body: JSON.stringify(requestBody)
                 });
 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    console.error('Failed to parse response:', parseError);
+                    showError(`Server error: ${response.status} ${response.statusText}`);
+                    return;
+                }
 
                 if (response.ok) {
                     currentUser = data.user;
@@ -613,7 +771,7 @@
                         const botNameToUse = data.user.bot_name || 'Virtual Partner';
                         messages = [{
                             role: 'assistant',
-                            content: `Hi ${data.user.username}! 💕 I'm ${botNameToUse}, and I'm so happy to meet you. I'm here to listen, support, and care about you. How are you feeling today?`,
+                            content: `Hey ${data.user.username}! 👋 I'm ${botNameToUse}. How are you doing?`,
                             timestamp: new Date().toISOString()
                         }];
                         renderMessages();
@@ -622,10 +780,13 @@
                     loginScreen.classList.add('hidden');
                     chatScreen.classList.add('show-flex');
                 } else {
-                    showError(data.error || 'Authentication failed');
+                    const errorMessage = data.error || `Authentication failed (${response.status})`;
+                    console.error('Authentication error:', errorMessage);
+                    showError(errorMessage);
                 }
             } catch (err) {
-                showError('Server connection failed. Make sure backend is running on http://localhost:5000');
+                console.error('Network error:', err);
+                showError('Server connection failed. Please check if the server is running and try again.');
             } finally {
                 isLoading = false;
                 authBtn.textContent = isRegistering ? 'Create Account' : 'Sign In';
@@ -763,6 +924,90 @@
             });
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
+
+        function openSettingsModal() {
+            if (!currentUser) return;
+            
+            // Populate modal with current user data
+            editGender.value = currentUser.gender || 'other';
+            editBotName.value = currentUser.bot_name || 'Virtual Partner';
+            settingsErrorMessage.classList.add('hidden');
+            settingsModal.classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            settingsModal.classList.add('hidden');
+            settingsErrorMessage.classList.add('hidden');
+        }
+
+        function showSettingsError(msg) {
+            settingsErrorMessage.textContent = msg;
+            settingsErrorMessage.classList.remove('hidden');
+        }
+
+        function hideSettingsError() {
+            settingsErrorMessage.classList.add('hidden');
+        }
+
+        async function saveProfileSettings() {
+            if (!currentUser) return;
+
+            const newGender = editGender.value;
+            const newBotName = editBotName.value.trim();
+
+            if (!newBotName) {
+                showSettingsError('Bot name cannot be empty');
+                return;
+            }
+
+            hideSettingsError();
+            saveSettingsBtn.disabled = true;
+            saveSettingsBtn.textContent = 'Saving...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/user/profile/${currentUser.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        gender: newGender,
+                        bot_name: newBotName
+                    })
+                });
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    console.error('Failed to parse response:', parseError);
+                    showSettingsError(`Server error: ${response.status} ${response.statusText}`);
+                    return;
+                }
+
+                if (response.ok) {
+                    // Update current user data
+                    currentUser.gender = data.user.gender;
+                    currentUser.bot_name = data.user.bot_name;
+                    
+                    // Update bot name in header
+                    updateBotNameHeader(data.user.bot_name);
+                    
+                    // Close modal
+                    closeSettings();
+                    
+                    // Show success message (optional - you could add a toast notification)
+                    console.log('Profile updated successfully');
+                } else {
+                    showSettingsError(data.error || 'Failed to update profile');
+                }
+            } catch (err) {
+                console.error('Network error:', err);
+                showSettingsError('Server connection failed. Please try again.');
+            } finally {
+                saveSettingsBtn.disabled = false;
+                saveSettingsBtn.textContent = 'Save Changes';
+            }
+        }
+
     </script>
 </body>
 </html>

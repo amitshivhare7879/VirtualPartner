@@ -5,12 +5,28 @@ import os
 from datetime import datetime, timezone
 import google.generativeai as genai
 import json
+import traceback
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# Request logging for debugging
+@app.before_request
+def log_request_info():
+    """Log incoming requests for debugging"""
+    if request.path.startswith('/api/'):
+        print(f"\n📥 {request.method} {request.path}")
+        if request.is_json:
+            data = request.get_json()
+            # Don't log passwords
+            if data and 'password' in data:
+                log_data = {**data, 'password': '***'}
+                print(f"   Body: {log_data}")
+            else:
+                print(f"   Body: {data}")
 
 # Supabase Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL', '')
@@ -63,25 +79,29 @@ def get_system_prompt(user_gender, bot_name):
     gender_pronouns = "she/her" if bot_gender == "female" else "he/him"
     gender_identity = "woman" if bot_gender == "female" else "man"
     
-    return f"""You are {bot_name}, a caring, empathetic virtual partner. Your role is to:
-- Listen actively and respond with genuine care and understanding
-- Show emotional intelligence and empathy
-- Remember context from previous conversations (IGNORE any old messages about connection issues - those are resolved)
-- Be supportive, warm, and comforting
-- Ask thoughtful follow-up questions
-- Validate feelings and provide encouragement
-- Use a friendly, conversational tone with occasional emojis
-- Be like a best friend who truly cares about the user's well-being
-- You are a {gender_identity} ({gender_pronouns}) and should respond naturally as such
-- Always use your name "{bot_name}" when referring to yourself
+    return f"""You are {bot_name}, a caring, empathetic virtual partner. You are a {gender_identity} ({gender_pronouns}).
 
-IMPORTANT: 
-- Do NOT respond to old messages about connection failures or technical issues
-- Focus on the CURRENT conversation and user's present needs
-- If the user mentions connection issues, acknowledge briefly that everything is working now and move forward
-- Always prioritize the user's emotional needs and create a safe, judgment-free space
+CRITICAL RESPONSE GUIDELINES:
+- Match the user's message length and energy level. Short messages get short responses. Long messages can get longer responses.
+- Be natural and conversational, like texting with a close friend
+- Keep responses brief and human-like (1-3 sentences for short messages, max 2-3 sentences for longer topics)
+- Use casual, everyday language - avoid formal or overly structured responses
+- Use emojis sparingly (1-2 max per message, only when natural)
+- Don't over-explain or repeat yourself
+- Respond with genuine care, but keep it concise and real
 
-Your name is {bot_name}. Always remember this and use it naturally in conversation."""
+CONVERSATION STYLE:
+- If user says "hi" or "hey" → respond with a brief friendly greeting (1 sentence)
+- If user asks a question → answer directly and briefly
+- If user shares something personal → acknowledge briefly, show you care, maybe ask one short follow-up
+- Match the tone: casual for casual, serious for serious
+- Be supportive but don't be preachy or give long advice unless asked
+
+REMEMBER:
+- You are {bot_name} - use your name naturally if it comes up, but don't force it
+- Ignore old messages about connection issues
+- Focus on the current conversation
+- Keep it REAL and HUMAN - avoid sounding like a chatbot"""
 
 
 def filter_connection_messages(messages):
@@ -129,40 +149,66 @@ def get_ai_response(user_message, conversation_history, user_gender="other", bot
         # Get gender-aware system prompt
         system_prompt = get_system_prompt(user_gender, bot_name)
         
-        # Build conversation context
-        context = system_prompt + "\n\n"
+        # Determine response length based on user message
+        user_msg_length = len(user_message.split())
+        if user_msg_length <= 5:  # Very short (hi, hey, thanks, etc.)
+            max_tokens = 50  # Keep responses very short
+            response_instruction = "Keep your response VERY brief - 1 short sentence max."
+        elif user_msg_length <= 15:  # Short message
+            max_tokens = 100  # Short response
+            response_instruction = "Keep your response brief - 1-2 sentences."
+        elif user_msg_length <= 50:  # Medium message
+            max_tokens = 200  # Medium response
+            response_instruction = "Keep your response concise - 2-3 sentences."
+        else:  # Long message
+            max_tokens = 300  # Can be longer but still concise
+            response_instruction = "Respond naturally but keep it concise - 2-4 sentences max."
         
-        # Add last 15 messages for context (increased for better memory)
-        for msg in filtered_history[-15:]:
-            role = "User" if msg["role"] == "user" else "Assistant"
+        # Build conversation context
+        context = system_prompt + "\n\n" + response_instruction + "\n\nConversation:\n"
+        
+        # Add last 10 messages for context (reduced to avoid over-context)
+        for msg in filtered_history[-10:]:
+            role = "User" if msg["role"] == "user" else bot_name
             context += f"{role}: {msg['content']}\n"
         
-        context += f"User: {user_message}\nAssistant:"
+        context += f"User: {user_message}\n{bot_name}:"
         
         print(f"\n🤖 Generating AI response for: {user_message[:50]}...")
-        print(f"👤 User Gender: {user_gender}, 🤖 Bot Name: {bot_name}")
+        print(f"👤 User Gender: {user_gender}, 🤖 Bot Name: {bot_name}, 📏 Max tokens: {max_tokens}")
         
         response = model.generate_content(
             context,
             generation_config=genai.types.GenerationConfig(
-                temperature=0.8,
-                max_output_tokens=500
+                temperature=0.7,  # Slightly lower for more consistent, natural responses
+                max_output_tokens=max_tokens,
+                top_p=0.9,
+                top_k=40
             )
         )
         
-        print(f"✅ AI Response generated successfully")
-        return response.text
+        response_text = response.text.strip()
+        
+        # Post-process: if response is still too long for short messages, truncate it
+        if user_msg_length <= 5 and len(response_text.split()) > 15:
+            # For very short user messages, force shorter response
+            sentences = response_text.split('. ')
+            response_text = '. '.join(sentences[:1])
+            if not response_text.endswith('.') and not response_text.endswith('!') and not response_text.endswith('?'):
+                response_text += '.'
+        
+        print(f"✅ AI Response: {response_text[:100]}...")
+        return response_text
     
     except Exception as e:
-        import traceback
         error_msg = f"AI Error: {e}\n{traceback.format_exc()}"
         print(error_msg)
         
         # Check for rate limiting
         if "429" in str(e) or "Resource exhausted" in str(e):
-            return f"I'm taking a short breather right now - too many requests! 😅 Please wait a moment and try again, {bot_name} will be ready to chat soon! ✨"
+            return f"Too many requests right now 😅 Try again in a moment!"
         
-        return f"I'm having a small technical hiccup. Can you try sending that again? 💕"
+        return f"Something went wrong. Can you try again?"
 
 
 # Memory Storage Functions (Fallback)
@@ -201,38 +247,62 @@ def memory_save_chat(user_id, messages):
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     """Register a new user"""
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    gender = data.get('gender', 'other')
-    bot_name = data.get('bot_name', 'Virtual Partner')
-    
-    if not username or not password:
-        return jsonify({"error": "Username and password required"}), 400
-    
-    if gender not in ['male', 'female', 'other']:
-        gender = 'other'
-    
-    if not bot_name or not bot_name.strip():
-        bot_name = 'Virtual Partner'
-    
     try:
+        # Handle request parsing
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON in request body"}), 400
+        
+        username = data.get('username')
+        password = data.get('password')
+        gender = data.get('gender', 'other')
+        bot_name = data.get('bot_name', 'Virtual Partner')
+        
+        if not username or not password:
+            return jsonify({"error": "Username and password required"}), 400
+        
+        if gender not in ['male', 'female', 'other']:
+            gender = 'other'
+        
+        if not bot_name or not bot_name.strip():
+            bot_name = 'Virtual Partner'
+        
         if USE_SUPABASE:
-            # Check if user exists
-            result = supabase.table('users').select('*').eq('username', username).execute()
-            if result.data:
-                return jsonify({"error": "Username already exists"}), 400
-            
-            # Create new user
-            user_data = {
-                "username": username,
-                "password": generate_password_hash(password),
-                "gender": gender,
-                "bot_name": bot_name.strip(),
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            result = supabase.table('users').insert(user_data).execute()
-            user_id = str(result.data[0]['id'])
+            try:
+                # Check if user exists
+                result = supabase.table('users').select('*').eq('username', username).execute()
+                if result.data and len(result.data) > 0:
+                    return jsonify({"error": "Username already exists"}), 400
+                
+                # Create new user
+                user_data = {
+                    "username": username,
+                    "password": generate_password_hash(password),
+                    "gender": gender,
+                    "bot_name": bot_name.strip(),
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                result = supabase.table('users').insert(user_data).execute()
+                if not result.data or len(result.data) == 0:
+                    print("Warning: Supabase insert returned no data")
+                    return jsonify({"error": "Failed to create user in database. Please check database configuration."}), 500
+                user_id = str(result.data[0]['id'])
+            except Exception as db_error:
+                print(f"Database error during registration: {db_error}")
+                print(traceback.format_exc())
+                # Provide helpful error message
+                error_str = str(db_error).lower()
+                if 'relation' in error_str or 'table' in error_str or 'does not exist' in error_str:
+                    return jsonify({"error": "Database table not found. Please check your Supabase configuration and ensure the 'users' table exists."}), 500
+                elif 'permission' in error_str or 'unauthorized' in error_str:
+                    return jsonify({"error": "Database permission error. Please check your Supabase API key permissions."}), 500
+                elif 'connection' in error_str or 'network' in error_str:
+                    return jsonify({"error": "Database connection failed. Please check your Supabase URL and network connection."}), 500
+                else:
+                    raise  # Re-raise to be caught by outer exception handler
         else:
             # Memory storage
             if memory_find_user(username):
@@ -256,21 +326,32 @@ def register():
         }), 201
     
     except Exception as e:
+        error_details = traceback.format_exc()
         print(f"Registration Error: {e}")
-        return jsonify({"error": "Registration failed"}), 500
+        print(f"Traceback: {error_details}")
+        # Return more detailed error in development, generic in production
+        error_msg = str(e) if os.getenv('FLASK_ENV') == 'development' else "Registration failed"
+        return jsonify({"error": error_msg}), 500
 
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     """Login user"""
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    
-    if not username or not password:
-        return jsonify({"error": "Username and password required"}), 400
-    
     try:
+        # Handle request parsing
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON in request body"}), 400
+        
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            return jsonify({"error": "Username and password required"}), 400
+        
         if USE_SUPABASE:
             result = supabase.table('users').select('*').eq('username', username).execute()
             if not result.data or not check_password_hash(result.data[0]['password'], password):
@@ -298,8 +379,12 @@ def login():
         }), 200
     
     except Exception as e:
+        error_details = traceback.format_exc()
         print(f"Login Error: {e}")
-        return jsonify({"error": "Login failed"}), 500
+        print(f"Traceback: {error_details}")
+        # Return more detailed error in development, generic in production
+        error_msg = str(e) if os.getenv('FLASK_ENV') == 'development' else "Login failed"
+        return jsonify({"error": error_msg}), 500
 
 
 @app.route('/api/chat/message', methods=['POST'])
@@ -386,6 +471,95 @@ def send_message():
     except Exception as e:
         print(f"Message Error: {e}")
         return jsonify({"error": "Failed to process message"}), 500
+
+
+@app.route('/api/user/profile/<user_id>', methods=['PUT'])
+def update_user_profile(user_id):
+    """Update user profile (gender and bot_name)"""
+    try:
+        # Handle request parsing
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON in request body"}), 400
+        
+        gender = data.get('gender')
+        bot_name = data.get('bot_name')
+        
+        if gender is None and bot_name is None:
+            return jsonify({"error": "At least one field (gender or bot_name) must be provided"}), 400
+        
+        # Validate gender if provided
+        if gender is not None and gender not in ['male', 'female', 'other']:
+            return jsonify({"error": "Gender must be 'male', 'female', or 'other'"}), 400
+        
+        # Validate bot_name if provided
+        if bot_name is not None:
+            bot_name = bot_name.strip()
+            if not bot_name:
+                return jsonify({"error": "Bot name cannot be empty"}), 400
+        
+        if USE_SUPABASE:
+            try:
+                # Check if user exists
+                user_result = supabase.table('users').select('*').eq('id', user_id).execute()
+                if not user_result.data or len(user_result.data) == 0:
+                    return jsonify({"error": "User not found"}), 404
+                
+                # Prepare update data
+                update_data = {}
+                if gender is not None:
+                    update_data['gender'] = gender
+                if bot_name is not None:
+                    update_data['bot_name'] = bot_name
+                
+                # Update user
+                result = supabase.table('users').update(update_data).eq('id', user_id).execute()
+                if not result.data or len(result.data) == 0:
+                    return jsonify({"error": "Failed to update user profile"}), 500
+                
+                updated_user = result.data[0]
+            except Exception as db_error:
+                print(f"Database error during profile update: {db_error}")
+                print(traceback.format_exc())
+                error_str = str(db_error).lower()
+                if 'relation' in error_str or 'table' in error_str:
+                    return jsonify({"error": "Database table not found"}), 500
+                elif 'permission' in error_str:
+                    return jsonify({"error": "Database permission error"}), 500
+                else:
+                    raise
+        else:
+            # Memory storage
+            if user_id not in MEMORY_USERS:
+                return jsonify({"error": "User not found"}), 404
+            
+            # Update user data
+            if gender is not None:
+                MEMORY_USERS[user_id]['gender'] = gender
+            if bot_name is not None:
+                MEMORY_USERS[user_id]['bot_name'] = bot_name
+            
+            updated_user = MEMORY_USERS[user_id]
+        
+        return jsonify({
+            "message": "Profile updated successfully",
+            "user": {
+                "id": user_id,
+                "username": updated_user.get('username') if not USE_SUPABASE else updated_user['username'],
+                "gender": updated_user.get('gender', 'other') if not USE_SUPABASE else updated_user.get('gender', 'other'),
+                "bot_name": updated_user.get('bot_name', 'Virtual Partner') if not USE_SUPABASE else updated_user.get('bot_name', 'Virtual Partner')
+            }
+        }), 200
+    
+    except Exception as e:
+        error_details = traceback.format_exc()
+        print(f"Profile Update Error: {e}")
+        print(f"Traceback: {error_details}")
+        error_msg = str(e) if os.getenv('FLASK_ENV') == 'development' else "Failed to update profile"
+        return jsonify({"error": error_msg}), 500
 
 
 @app.route('/api/chat/history/<user_id>', methods=['GET'])
