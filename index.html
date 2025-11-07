@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Partner Chatbot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #fce4ec 0%, #e1bee7 50%, #bbdefb 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        .login-box {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #ec407a, #ab47bc);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+
+        .logo svg {
+            width: 40px;
+            height: 40px;
+            fill: white;
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #ab47bc;
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ec407a, #ab47bc);
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(171, 71, 188, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-link {
+            background: none;
+            color: #ab47bc;
+            font-size: 14px;
+        }
+
+        .btn-link:hover {
+            text-decoration: underline;
+        }
+
+        .chat-container {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+            background: linear-gradient(135deg, #fce4ec 0%, #e1bee7 50%, #bbdefb 100%);
+        }
+
+        .chat-header {
+            background: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #ec407a, #ab47bc);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .header-logo svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        .header-info h2 {
+            font-size: 18px;
+            color: #333;
+        }
+
+        .header-info p {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-info .username {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .user-info .status {
+            font-size: 11px;
+            color: #4caf50;
+        }
+
+        .logout-btn {
+            background: #f5f5f5;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .logout-btn svg {
+            width: 20px;
+            height: 20px;
+            stroke: #666;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            max-width: 70%;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+            align-self: flex-end;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: #2196f3;
+        }
+
+        .message.assistant .message-avatar {
+            background: linear-gradient(135deg, #ec407a, #ab47bc);
+        }
+
+        .message-avatar svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        .message-content {
+            padding: 14px 18px;
+            border-radius: 18px;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .message.user .message-content {
+            background: #2196f3;
+            color: white;
+            border-top-right-radius: 4px;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            color: #333;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-top-left-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            margin-top: 4px;
+            opacity: 0.7;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 12px;
+            max-width: 70%;
+        }
+
+        .typing-dots {
+            background: white;
+            padding: 14px 18px;
+            border-radius: 18px;
+            border-top-left-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 4px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: #ab47bc;
+            border-radius: 50%;
+            animation: bounce 1s infinite;
+        }
+
+        .dot:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .dot:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .input-container {
+            background: white;
+            padding: 16px 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 14px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 24px;
+            font-size: 15px;
+            transition: all 0.3s;
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: #ab47bc;
+        }
+
+        .send-btn {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #ec407a, #ab47bc);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .send-btn svg {
+            width: 20px;
+            height: 20px;
+            stroke: white;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .show-flex {
+            display: flex !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-box">
+            <div class="logo-container">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>
+                </div>
+                <h1>Virtual Partner</h1>
+                <p class="subtitle">Your caring companion, always here for you</p>
+            </div>
+
+            <div id="errorMessage" class="error-message hidden"></div>
+
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="username" placeholder="Enter username">
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+
+            <!-- Registration-only fields -->
+            <div id="registerFields" class="hidden">
+                <div class="form-group">
+                    <label>Your Gender</label>
+                    <select id="gender" style="width: 100%; padding: 14px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 15px; background: white;">
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Bot Name</label>
+                    <input type="text" id="botName" placeholder="Name your virtual partner (e.g., Alex, Sam, Jordan)">
+                </div>
+            </div>
+
+            <button id="authBtn" class="btn btn-primary">Sign In</button>
+            <button id="toggleBtn" class="btn btn-link">Need an account? Register</button>
+        </div>
+    </div>
+
+    <!-- Chat Screen -->
+    <div id="chatScreen" class="chat-container">
+        <div class="chat-header">
+            <div class="header-left">
+                <div class="header-logo">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>
+                </div>
+                <div class="header-info">
+                    <h2 id="botNameHeader">Virtual Partner</h2>
+                    <p>Always here to listen and care</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <div class="username" id="currentUsername"></div>
+                    <div class="status">Online</div>
+                </div>
+                <button class="logout-btn" id="logoutBtn">
+                    <svg fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="messages-container" id="messagesContainer"></div>
+
+        <div class="input-container">
+            <input type="text" class="message-input" id="messageInput" placeholder="Share your thoughts with me...">
+            <button class="send-btn" id="sendBtn">
+                <svg fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Use relative URL for production, localhost for development
+        const API_BASE_URL = window.location.origin + '/api';
+        let currentUser = null;
+        let messages = [];
+        let isRegistering = false;
+        let isLoading = false;
+
+        // DOM Elements
+        const loginScreen = document.getElementById('loginScreen');
+        const chatScreen = document.getElementById('chatScreen');
+        const username = document.getElementById('username');
+        const password = document.getElementById('password');
+        const gender = document.getElementById('gender');
+        const botName = document.getElementById('botName');
+        const registerFields = document.getElementById('registerFields');
+        const authBtn = document.getElementById('authBtn');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const currentUsername = document.getElementById('currentUsername');
+        const botNameHeader = document.getElementById('botNameHeader');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const messagesContainer = document.getElementById('messagesContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        // Event Listeners
+        authBtn.addEventListener('click', handleAuth);
+        toggleBtn.addEventListener('click', toggleAuthMode);
+        logoutBtn.addEventListener('click', handleLogout);
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        username.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') password.focus();
+        });
+
+        password.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleAuth();
+        });
+
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+        function toggleAuthMode() {
+            isRegistering = !isRegistering;
+            authBtn.textContent = isRegistering ? 'Create Account' : 'Sign In';
+            toggleBtn.textContent = isRegistering ? 'Already have an account? Sign in' : 'Need an account? Register';
+            
+            // Show/hide registration fields
+            if (isRegistering) {
+                registerFields.classList.remove('hidden');
+            } else {
+                registerFields.classList.add('hidden');
+            }
+            
+            hideError();
+        }
+
+        async function handleAuth() {
+            const user = username.value.trim();
+            const pass = password.value.trim();
+
+            if (!user || !pass) {
+                showError('Please enter username and password');
+                return;
+            }
+
+            // Validate registration fields
+            if (isRegistering) {
+                const userGender = gender.value;
+                const partnerName = botName.value.trim();
+                
+                if (!partnerName) {
+                    showError('Please enter a name for your virtual partner');
+                    return;
+                }
+            }
+
+            hideError();
+            isLoading = true;
+            authBtn.textContent = 'Please wait...';
+            authBtn.disabled = true;
+
+            try {
+                const endpoint = isRegistering ? '/auth/register' : '/auth/login';
+                const requestBody = { username: user, password: pass };
+                
+                // Add registration fields if registering
+                if (isRegistering) {
+                    requestBody.gender = gender.value;
+                    requestBody.bot_name = botName.value.trim();
+                }
+                
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentUser = data.user;
+                    currentUsername.textContent = data.user.username;
+                    
+                    // Update bot name in header
+                    updateBotNameHeader(data.user.bot_name);
+                    
+                    username.value = '';
+                    password.value = '';
+                    if (isRegistering) {
+                        gender.value = 'male';
+                        botName.value = '';
+                    }
+                    
+                    if (!isRegistering) {
+                        await loadChatHistory(data.user.id);
+                    } else {
+                        const botNameToUse = data.user.bot_name || 'Virtual Partner';
+                        messages = [{
+                            role: 'assistant',
+                            content: `Hi ${data.user.username}! 💕 I'm ${botNameToUse}, and I'm so happy to meet you. I'm here to listen, support, and care about you. How are you feeling today?`,
+                            timestamp: new Date().toISOString()
+                        }];
+                        renderMessages();
+                    }
+
+                    loginScreen.classList.add('hidden');
+                    chatScreen.classList.add('show-flex');
+                } else {
+                    showError(data.error || 'Authentication failed');
+                }
+            } catch (err) {
+                showError('Server connection failed. Make sure backend is running on http://localhost:5000');
+            } finally {
+                isLoading = false;
+                authBtn.textContent = isRegistering ? 'Create Account' : 'Sign In';
+                authBtn.disabled = false;
+            }
+        }
+
+        async function loadChatHistory(userId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/chat/history/${userId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    messages = data.messages || [];
+                    renderMessages();
+                    
+                    // Update bot name header if available
+                    if (currentUser && currentUser.bot_name) {
+                        updateBotNameHeader(currentUser.bot_name);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load chat history:', err);
+            }
+        }
+
+        // Update bot name header when user data is loaded
+        function updateBotNameHeader(botName) {
+            if (botNameHeader && botName) {
+                botNameHeader.textContent = botName;
+            }
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            messages = [];
+            loginScreen.classList.remove('hidden');
+            chatScreen.classList.remove('show-flex');
+            messagesContainer.innerHTML = '';
+        }
+
+        async function sendMessage() {
+            const msg = messageInput.value.trim();
+            if (!msg || isLoading) return;
+
+            const userMessage = {
+                role: 'user',
+                content: msg,
+                timestamp: new Date().toISOString()
+            };
+
+            messages.push(userMessage);
+            renderMessages();
+            messageInput.value = '';
+            isLoading = true;
+            sendBtn.disabled = true;
+
+            showTypingIndicator();
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/chat/message`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        userId: currentUser.id,
+                        message: msg 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    messages.push({
+                        role: 'assistant',
+                        content: data.response,
+                        timestamp: new Date().toISOString()
+                    });
+                    renderMessages();
+                }
+            } catch (err) {
+                console.error('Failed to send message:', err);
+            } finally {
+                isLoading = false;
+                sendBtn.disabled = false;
+                hideTypingIndicator();
+            }
+        }
+
+        function showTypingIndicator() {
+            const typing = document.createElement('div');
+            typing.id = 'typingIndicator';
+            typing.className = 'typing-indicator';
+            typing.innerHTML = `
+                <div class="message-avatar">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>
+                </div>
+                <div class="typing-dots">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+            `;
+            messagesContainer.appendChild(typing);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+        }
+
+        function renderMessages() {
+            messagesContainer.innerHTML = '';
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.role}`;
+                
+                const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                const icon = msg.role === 'user' 
+                    ? '<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>'
+                    : '<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>';
+
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">
+                        <svg viewBox="0 0 24 24">${icon}</svg>
+                    </div>
+                    <div>
+                        <div class="message-content">${msg.content}</div>
+                        <div class="message-time">${time}</div>
+                    </div>
+                `;
+                messagesContainer.appendChild(messageDiv);
+            });
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>
