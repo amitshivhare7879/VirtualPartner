@@ -34,23 +34,27 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY', '')
 
 # Initialize Supabase client
 USE_SUPABASE = False
+supabase = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
         from supabase import create_client, Client
         supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
         USE_SUPABASE = True
-        print("✅ Supabase Connected Successfully!")
+        print("✅ Supabase Client Initialized!")
+        print("   (Connection will be tested on first database operation)")
     except Exception as e:
         print(f"⚠️ Supabase Connection Failed: {e}")
+        print(traceback.format_exc())
         print("📦 Using in-memory storage")
+        USE_SUPABASE = False
+        supabase = None
 else:
-    print("⚠️ Supabase credentials not found in .env")
+    print("⚠️ Supabase credentials not found")
     print("📦 Using in-memory storage")
 
-# Fallback to in-memory storage
-if not USE_SUPABASE:
-    MEMORY_USERS = {}
-    MEMORY_CHATS = {}
+# Fallback to in-memory storage (always initialize)
+MEMORY_USERS = {}
+MEMORY_CHATS = {}
 
 # Gemini Configuration
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
@@ -295,11 +299,15 @@ def register():
         if not bot_name or len(bot_name) == 0:
             bot_name = 'Virtual Partner'
         
-        if USE_SUPABASE:
+        # Try Supabase first if available, fall back to memory on error
+        user_id = None
+        if USE_SUPABASE and supabase is not None:
             try:
+                print(f"Attempting to register user with Supabase: {username}")
                 # Check if user exists
                 result = supabase.table('users').select('*').eq('username', username).execute()
                 if result.data and len(result.data) > 0:
+                    print(f"Username '{username}' already exists in Supabase")
                     return jsonify({"error": "Username already exists"}), 400
                 
                 # Create new user
@@ -312,38 +320,41 @@ def register():
                 }
                 result = supabase.table('users').insert(user_data).execute()
                 if not result.data or len(result.data) == 0:
-                    print("Warning: Supabase insert returned no data")
-                    return jsonify({"error": "Failed to create user in database. Please check database configuration."}), 500
+                    print("Warning: Supabase insert returned no data, falling back to memory storage")
+                    raise Exception("Supabase insert failed")
                 user_id = str(result.data[0]['id'])
+                print(f"User created successfully in Supabase with ID: {user_id}")
             except Exception as db_error:
                 print(f"Database error during registration: {db_error}")
                 print(traceback.format_exc())
-                # Provide helpful error message
-                error_str = str(db_error).lower()
-                if 'relation' in error_str or 'table' in error_str or 'does not exist' in error_str:
-                    return jsonify({"error": "Database table not found. Please check your Supabase configuration and ensure the 'users' table exists."}), 500
-                elif 'permission' in error_str or 'unauthorized' in error_str:
-                    return jsonify({"error": "Database permission error. Please check your Supabase API key permissions."}), 500
-                elif 'connection' in error_str or 'network' in error_str:
-                    return jsonify({"error": "Database connection failed. Please check your Supabase URL and network connection."}), 500
-                else:
-                    raise  # Re-raise to be caught by outer exception handler
-        else:
-            # Memory storage
-            print(f"Using in-memory storage for registration")
+                print("Falling back to in-memory storage")
+                user_id = None  # Reset to trigger memory storage
+        
+        # Use memory storage (either as primary or fallback)
+        if user_id is None:
+            if not USE_SUPABASE or supabase is None:
+                print(f"Using in-memory storage for registration: {username}")
+            else:
+                print(f"Falling back to in-memory storage for: {username}")
+            
             existing_user = memory_find_user(username)
             if existing_user:
-                print(f"Username '{username}' already exists")
+                print(f"Username '{username}' already exists in memory")
                 return jsonify({"error": "Username already exists"}), 400
             
             print(f"Creating new user in memory: {username}")
-            user_id = memory_create_user(
-                username, 
-                generate_password_hash(password),
-                gender,
-                bot_name
-            )
-            print(f"User created successfully with ID: {user_id}")
+            try:
+                user_id = memory_create_user(
+                    username, 
+                    generate_password_hash(password),
+                    gender,
+                    bot_name
+                )
+                print(f"User created successfully in memory with ID: {user_id}")
+            except Exception as mem_error:
+                print(f"Memory storage error: {mem_error}")
+                print(traceback.format_exc())
+                return jsonify({"error": "Failed to create user. Please try again."}), 500
         
         return jsonify({
             "message": "User registered successfully",
@@ -359,8 +370,9 @@ def register():
         error_details = traceback.format_exc()
         print(f"Registration Error: {e}")
         print(f"Traceback: {error_details}")
-        # Return more detailed error in development, generic in production
-        error_msg = str(e) if os.getenv('FLASK_ENV') == 'development' else "Registration failed"
+        # Always return detailed error message to help with debugging
+        error_msg = f"Registration failed: {str(e)}"
+        print(f"Returning error to client: {error_msg}")
         return jsonify({"error": error_msg}), 500
 
 
